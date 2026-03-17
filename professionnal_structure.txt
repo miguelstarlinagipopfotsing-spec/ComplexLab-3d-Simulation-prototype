@@ -1,0 +1,8 @@
+simulation3d/
+│
+├── engine/
+│   ├── physics.py
+│   ├── Rail.py
+│   ├── curve_rail.py
+│
+├── main.py
