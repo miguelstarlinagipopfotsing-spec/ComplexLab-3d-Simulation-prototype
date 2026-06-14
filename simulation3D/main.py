@@ -23,6 +23,8 @@ from engine.Rail import Rail
 class SimulationApp(ShowBase):
     def __init__(self):
         super().__init__()
+
+        self.setBackgroundColor(0.18, 0.18, 0.18, 1.0)
         # rail creation system
         self.creating_rail = False
         self.rail_start_point = None
@@ -58,15 +60,6 @@ class SimulationApp(ShowBase):
         self.pickerNode.setFromCollideMask(BitMask32.bit(1))
         self.picker.addCollider(self.pickerNP, self.pq)
 
-        curve = CurveRail(
-            [0,0,5],
-            [0,10,5],
-            [10,0,0]
-        )
-        curve.next_rails = []
-        self.draw_curve(curve)
-        self.rails.append(curve)
-
         # Rail building height
         self.build_z = 0.0
         self.accept("q", self.increase_z)
@@ -79,16 +72,16 @@ class SimulationApp(ShowBase):
         # Point the camera at the center
         self.camera.lookAt(0, 0, 0)
         # Camera variable.
-        self.cam_distance = 40
-        self.cam_yaw = 0
-        self.cam_pitch = 20
+        self.cam_distance = 95
+        self.cam_yaw = 45
+        self.cam_pitch = 30
 
         self.last_mouse = None
 
         # Add mouse avents
         self.cam_yaw = 0
         self.cam_pitch = 0
-        self.cam_distance = 20  # Ajuste la distance selon ton besoin
+        self.cam_distance = 20 
         self.last_mouse = None
         self.accept("mouse3", self.start_camera_rotate)
         self.accept("mouse3-up", self.stop_camera_rotate)
@@ -115,7 +108,7 @@ class SimulationApp(ShowBase):
 
         railA.next_rails.append(railB)
         railA.next_rails.append(railC)
-        railA.next_rails.append(curve)
+        railA.next_rails.append(railD)
         railC.next_rails.append(railD)
         railD.next_rails.append(railE)
         railE.next_rails.append(railF)
@@ -550,22 +543,6 @@ class SimulationApp(ShowBase):
         pos = origin + direction * t
         return np.array([pos.getX(), pos.getY(), pos.getZ()])
 
-    def draw_curve(self, curve):
-        lines = LineSegs()
-        lines.setThickness(8)
-        lines.setColor(0,1,0,1)
-        steps = 30
-
-        for i in range (steps):
-            t1 = i/steps
-            t2 = (i + 1)/steps
-            p1 = curve.point(t1)
-            p2 = curve.point(t2)
-
-            lines.moveTo(p1[0], p1[1], p1[2])
-            lines.drawTo(p2[0], p2[1], p2[2])
-        node = lines.create()
-        self.render.attachNewNode(node)
 
     def increase_z(self):
         self.build_z += 1.0
@@ -613,10 +590,10 @@ class SimulationApp(ShowBase):
 
         x = self.cam_distance * np.cos(pitch_rad) * np.sin(yaw_rad)
         y = self.cam_distance * np.cos(pitch_rad) * np.cos(yaw_rad)
-        z = self.cam_distance * np.sin(pitch_rad)
+        z = 20 + self.cam_distance * np.sin(pitch_rad)
 
         self.camera.setPos(x, y, z)
-        self.camera.lookAt(0, 0, 0)
+        self.camera.lookAt(0, 0, 20)
 
     def add_particle_at_mouse(self):
         mouse_pos = self.mouse_to_world()
@@ -692,25 +669,41 @@ class SimulationApp(ShowBase):
             print("Dernier rail annulé !")
 
     def build_giant_network(self):
-        # Liste de points [x, y, z]
-        points = [
-            [-20, 0, 10], [0, 0, 5], [10, 10, 8],
-            [20, 0, 5], [10, -10, 2], [0, 0, 5],
-            [10, 5,	5], [25, 10, 4], [35, 5, 3],
-            [30, -5, 2], [20, -10, 1], [10, -10, 0]
-        ]
+        # 1. Trouver automatiquement le dossier du projet, peu importe où il est stocké
+        dossier_principal = os.path.dirname(os.path.abspath(__file__))
+        
+        # 2. Créer le chemin vers le fichier dans le sous-dossier 'engine'
+        file_path = os.path.join(dossier_principal, "engine", "circuit_cubique.json")
+        
+        # Vérifier si le fichier existe bien à cet endroit
+        if not os.path.exists(file_path):
+            print(f"Erreur : Le fichier est introuvable à l'adresse : {file_path}")
+            return
 
-        for i in range(len(points) - 1):
-            start = points[i]
-            end = points[i + 1]
-            new_rail = Rail(start, end)
+        # Lire les coordonnées JSON
+        with open(file_path, "r") as f:
+            data = json.load(f)
 
-            # On connecte les rails entre eux pour que la bille continue sa route
-            if len(self.rails) > 0:
-                self.rails[-1].next_rails.append(new_rail)
+        # 3. Créer et afficher tous les rails droits
+        for r in data:
+            nouveau_rail = Rail(r["start"], r["end"])
+            self.rails.append(nouveau_rail)
+            self.draw_rails(nouveau_rail)
 
-            self.rails.append(new_rail)
-            self.draw_rails(new_rail)
+        # 4. Connecter automatiquement les rails qui se touchent aux intersections
+        for rail_A in self.rails:
+            for rail_B in self.rails:
+                if rail_A == rail_B:
+                    continue
+                    
+                # Calculer la distance entre la fin du rail A et le début du rail B
+                distance = np.linalg.norm(rail_A.end - rail_B.start)
+                
+                # Si la distance est presque nulle (0.01 max), ils sont connectés !
+                if distance < 0.01:
+                    rail_A.next_rails.append(rail_B)
+
+        print(f"Réseau cubique chargé avec succès depuis l'engine ! ({len(self.rails)} segments)")
 
     def setup_help_menu(self):
         """Creates the on-screen help menu."""
